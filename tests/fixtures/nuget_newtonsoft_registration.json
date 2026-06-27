@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "items": [
+        {
+          "catalogEntry": {
+            "version": "13.0.3",
+            "listed": true,
+            "projectUrl": "https://www.newtonsoft.com/json"
+          }
+        },
+        {
+          "catalogEntry": {
+            "version": "13.0.4",
+            "listed": true,
+            "projectUrl": "https://www.newtonsoft.com/json"
+          }
+        },
+        {
+          "catalogEntry": {
+            "version": "13.0.5-beta1",
+            "listed": true,
+            "projectUrl": "https://www.newtonsoft.com/json"
+          }
+        }
+      ]
+    }
+  ]
+}

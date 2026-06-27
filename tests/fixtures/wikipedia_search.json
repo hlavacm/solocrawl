@@ -1,0 +1,28 @@
+{
+  "batchcomplete": "",
+  "query": {
+    "searchinfo": {
+      "totalhits": 12345
+    },
+    "search": [
+      {
+        "ns": 0,
+        "title": "Python (programming language)",
+        "pageid": 23862,
+        "size": 189432,
+        "wordcount": 12456,
+        "snippet": "general-purpose <span class=\"searchmatch\">programming</span> language",
+        "timestamp": "2024-01-01T00:00:00Z"
+      },
+      {
+        "ns": 0,
+        "title": "Python Software Foundation",
+        "pageid": 23863,
+        "size": 12345,
+        "wordcount": 890,
+        "snippet": "non-profit organization that holds the intellectual property rights",
+        "timestamp": "2024-01-01T00:00:00Z"
+      }
+    ]
+  }
+}

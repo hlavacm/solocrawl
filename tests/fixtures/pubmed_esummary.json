@@ -1,0 +1,19 @@
+{
+  "result": {
+    "uids": ["12345", "67890"],
+    "12345": {
+      "uid": "12345",
+      "title": "Async programming in biomedical pipelines",
+      "fulljournalname": "Journal of Examples",
+      "source": "J Example",
+      "pubdate": "2024 Jan"
+    },
+    "67890": {
+      "uid": "67890",
+      "title": "PubMed search integration patterns",
+      "fulljournalname": "Journal of Examples",
+      "source": "J Example",
+      "pubdate": "2024 Feb"
+    }
+  }
+}

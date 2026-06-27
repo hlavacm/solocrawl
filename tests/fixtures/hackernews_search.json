@@ -1,0 +1,18 @@
+{
+  "hits": [
+    {
+      "title": "Show HN: SoloCrawl local search",
+      "url": "https://news.ycombinator.com/item?id=123456",
+      "points": 256,
+      "num_comments": 42,
+      "story_text": "A self-hosted search tool for local LLMs."
+    },
+    {
+      "title": "Ask HN: Best async Python patterns?",
+      "url": "https://news.ycombinator.com/item?id=654321",
+      "points": 88,
+      "num_comments": 17,
+      "story_text": "Looking for guidance on asyncio in production."
+    }
+  ]
+}

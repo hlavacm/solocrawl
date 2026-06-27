@@ -1,0 +1,7 @@
+[
+  {"number": "5.25.2", "platform": "ruby"},
+  {"number": "5.25.3", "platform": "ruby"},
+  {"number": "5.25.4", "platform": "ruby"},
+  {"number": "5.26.0.beta1", "platform": "ruby"},
+  {"number": "5.25.4", "platform": "java"}
+]

@@ -1,0 +1,39 @@
+{
+  "info": {
+    "name": "requests",
+    "version": "2.32.3",
+    "home_page": "https://requests.readthedocs.io",
+    "project_url": "https://pypi.org/project/requests/",
+    "project_urls": {
+      "Homepage": "https://requests.readthedocs.io",
+      "Source": "https://github.com/psf/requests"
+    }
+  },
+  "releases": {
+    "2.31.0": [
+      {
+        "yanked": false
+      }
+    ],
+    "2.32.0": [
+      {
+        "yanked": false
+      }
+    ],
+    "2.32.3": [
+      {
+        "yanked": false
+      }
+    ],
+    "3.0.0b1": [
+      {
+        "yanked": false
+      }
+    ],
+    "2.32.1": [
+      {
+        "yanked": true
+      }
+    ]
+  }
+}

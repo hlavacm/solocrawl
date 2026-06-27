@@ -1,0 +1,25 @@
+{
+  "searchinfo": {
+    "search": "python"
+  },
+  "search": [
+    {
+      "id": "Q28865",
+      "title": "Python",
+      "pageid": 31367,
+      "concepturi": "http://www.wikidata.org/entity/Q28865",
+      "url": "//www.wikidata.org/wiki/Q28865",
+      "label": "Python",
+      "description": "genus of reptiles"
+    },
+    {
+      "id": "Q28865",
+      "title": "Python (programming language)",
+      "pageid": 31368,
+      "concepturi": "http://www.wikidata.org/entity/Q28865",
+      "url": "//www.wikidata.org/wiki/Q28865",
+      "label": "Python",
+      "description": "general-purpose programming language"
+    }
+  ]
+}

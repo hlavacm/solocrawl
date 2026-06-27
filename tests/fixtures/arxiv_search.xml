@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Attention Is All You Need</title>
+    <id>http://arxiv.org/abs/1706.03762</id>
+    <summary>The dominant sequence transduction models are based on complex recurrent or convolutional neural networks.</summary>
+    <link href="http://arxiv.org/abs/1706.03762" rel="alternate" type="text/html"/>
+  </entry>
+  <entry>
+    <title>Python for Data Analysis</title>
+    <id>http://arxiv.org/abs/1234.5678</id>
+    <summary>A survey of Python tools for scientific computing.</summary>
+    <link href="http://arxiv.org/abs/1234.5678" rel="alternate" type="text/html"/>
+  </entry>
+</feed>

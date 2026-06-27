@@ -1,0 +1,44 @@
+[
+  {
+    "name": "1.4.0-beta.1",
+    "commit": {"sha": "aaa1", "url": "https://api.github.com/repos/apple/swift-argument-parser/commits/aaa1"},
+    "zipball_url": "https://api.github.com/repos/apple/swift-argument-parser/zipball/refs/tags/1.4.0-beta.1",
+    "tarball_url": "https://api.github.com/repos/apple/swift-argument-parser/tarball/refs/tags/1.4.0-beta.1",
+    "node_id": "NODE_aaa1"
+  },
+  {
+    "name": "1.3.0",
+    "commit": {"sha": "bbb2", "url": "https://api.github.com/repos/apple/swift-argument-parser/commits/bbb2"},
+    "zipball_url": "https://api.github.com/repos/apple/swift-argument-parser/zipball/refs/tags/1.3.0",
+    "tarball_url": "https://api.github.com/repos/apple/swift-argument-parser/tarball/refs/tags/1.3.0",
+    "node_id": "NODE_bbb2"
+  },
+  {
+    "name": "1.2.3",
+    "commit": {"sha": "ccc3", "url": "https://api.github.com/repos/apple/swift-argument-parser/commits/ccc3"},
+    "zipball_url": "https://api.github.com/repos/apple/swift-argument-parser/zipball/refs/tags/1.2.3",
+    "tarball_url": "https://api.github.com/repos/apple/swift-argument-parser/tarball/refs/tags/1.2.3",
+    "node_id": "NODE_ccc3"
+  },
+  {
+    "name": "1.2.2",
+    "commit": {"sha": "ddd4", "url": "https://api.github.com/repos/apple/swift-argument-parser/commits/ddd4"},
+    "zipball_url": "https://api.github.com/repos/apple/swift-argument-parser/zipball/refs/tags/1.2.2",
+    "tarball_url": "https://api.github.com/repos/apple/swift-argument-parser/tarball/refs/tags/1.2.2",
+    "node_id": "NODE_ddd4"
+  },
+  {
+    "name": "1.2.0",
+    "commit": {"sha": "eee5", "url": "https://api.github.com/repos/apple/swift-argument-parser/commits/eee5"},
+    "zipball_url": "https://api.github.com/repos/apple/swift-argument-parser/zipball/refs/tags/1.2.0",
+    "tarball_url": "https://api.github.com/repos/apple/swift-argument-parser/tarball/refs/tags/1.2.0",
+    "node_id": "NODE_eee5"
+  },
+  {
+    "name": "nightly",
+    "commit": {"sha": "fff6", "url": "https://api.github.com/repos/apple/swift-argument-parser/commits/fff6"},
+    "zipball_url": "https://api.github.com/repos/apple/swift-argument-parser/zipball/refs/tags/nightly",
+    "tarball_url": "https://api.github.com/repos/apple/swift-argument-parser/tarball/refs/tags/nightly",
+    "node_id": "NODE_fff6"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "solocrawl": {
+      "command": "solocrawl-mcp",
+      "args": [],
+      "env": {
+        "SOLOCRAWL_LOG_LEVEL": "INFO",
+        "SOLOCRAWL_LOG_FILE": "~/.local/state/solocrawl/mcp.log"
+      }
+    }
+  }
+}

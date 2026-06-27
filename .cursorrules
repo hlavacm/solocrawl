@@ -1,0 +1,4 @@
+This project is built per the specs in docs/. Before implementing anything,
+read docs/context/ (project.md, architecture.md, conventions.md, agent-workflow.md).
+Implement features one at a time from docs/features/. The mandatory quality gate
+before any feature is done: ruff + pyright + pytest must all pass.

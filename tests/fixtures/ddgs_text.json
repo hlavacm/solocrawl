@@ -1,0 +1,12 @@
+[
+  {
+    "title": "Python asyncio documentation",
+    "href": "https://docs.python.org/3/library/asyncio.html",
+    "body": "Asynchronous I/O, event loop, coroutines."
+  },
+  {
+    "title": "Real Python asyncio guide",
+    "href": "https://realpython.com/async-io-python/",
+    "body": "A guide to asyncio in Python."
+  }
+]

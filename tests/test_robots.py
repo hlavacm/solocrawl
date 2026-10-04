@@ -105,7 +105,7 @@ async def test_robots_cache_evicts_oldest_entry(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(robots_module, "_load_parser", fake_load)
 
-    client = httpx.AsyncClient()
+    client = httpx.AsyncClient(trust_env=False)
     await set_client_for_testing(client)
 
     await robots_module.is_fetch_allowed("https://a.example/page", user_agent="*", client=client)

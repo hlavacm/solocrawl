@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 
 import httpx
 import pytest
@@ -10,14 +11,19 @@ import pytest
 from solocrawl.config import Config
 from solocrawl.core.fetch.client import set_client_for_testing
 from solocrawl.core.search import clear_registry, select_providers
+from solocrawl.core.search import registry as search_registry
 from solocrawl.core.search.providers import wikipedia as wikipedia_module
 from solocrawl.core.search.providers.wikipedia import WikipediaProvider, _parse_search_response
 
 
 @pytest.fixture(autouse=True)
-def wikipedia_registered() -> None:
+def wikipedia_registered() -> Generator[None]:
+    saved = dict(search_registry._REGISTRY)
     clear_registry()
-    wikipedia_module.register("wikipedia", zero_config=True)(WikipediaProvider)
+    wikipedia_module.register("wikipedia", zero_config=True, configurable=True)(WikipediaProvider)
+    yield
+    clear_registry()
+    search_registry._REGISTRY.update(saved)
 
 
 def test_parse_search_response_maps_fixture(read_fixture) -> None:

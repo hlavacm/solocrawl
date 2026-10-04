@@ -202,11 +202,13 @@ from solocrawl.config import load_config
 from solocrawl.core.search import federated_search, select_providers
 from solocrawl.core.search.providers import duckduckgo, stackexchange, wikipedia  # noqa: F401
 
+
 async def main() -> None:
     providers = select_providers(load_config())
     results = await federated_search(providers, "asyncio python", limit=3)
     for result in results:
         print(result.title, result.url)
+
 
 asyncio.run(main())
 ```
@@ -233,8 +235,10 @@ See [examples/library_search.py](examples/library_search.py) for a runnable exam
 | `pubmed` | PubMed/NCBI E-utilities |
 | `github` | GitHub repository search |
 | `mdn` | MDN Web Docs search |
-| `reddit` | Reddit post search (`search.json`) |
 | `searxng` | Self-hosted SearXNG (set `SOLOCRAWL_SEARXNG_URL`) |
+
+The Reddit adapter was removed because Reddit [requires approved OAuth access](https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki).
+Legacy `SOLOCRAWL_ENABLE_PROVIDERS=reddit` settings no longer activate a provider.
 
 ```bash
 SOLOCRAWL_ENABLE_PROVIDERS=arxiv,hackernews solocrawl search "transformer attention" --limit 6
@@ -255,6 +259,19 @@ solocrawl package org.junit.jupiter:junit-jupiter --ecosystem maven
 solocrawl package github.com/gorilla/mux --ecosystem go
 solocrawl package apple/swift-argument-parser --ecosystem swift
 ```
+
+### Version constraints
+
+PyPI uses PEP 440 (`>=1.2,<2`, `~=1.4`, `==1.2.*`). Other registries use a common SemVer
+range subset: comparators, exact versions, `^`, `~`, partials and wildcards, whitespace/comma AND,
+`||` OR and hyphen ranges (`1.2 - 1.3` includes the whole 1.3 series). SemVer prereleases such as
+`canary.1` retain their ordering and bounds; enable them with `--allow-prerelease`.
+Native Maven/NuGet interval notation and RubyGems `~>` are not supported and are rejected clearly.
+SoloCrawl does not claim to implement each registry's complete native range grammar. Maven, NuGet
+and RubyGems retain numeric/standard prerelease ordering through `packaging`, including four-part
+numeric releases; SemVer ecosystems use `semver`.
+PyPI releases without files or with all files yanked are excluded; mixed yanking keeps the release
+available. Swift follows GitHub tag pagination, and Go module paths use the proxy's case escaping.
 
 ## Optional extras
 
@@ -304,14 +321,33 @@ shell environment variables take precedence.
 
 </details>
 
+Concurrency, response-size limits and timeout must be positive; retries and cache TTL must be
+non-negative. Timeout must be finite. Invalid settings report the environment-variable name rather
+than hanging a request. Catch proxy exhaustion in library code with
+`from solocrawl.core.proxy import ProxyUnavailableError`. Enabling a proxy requires valid HTTP(S) endpoints. A depleted proxy pool
+raises `ProxyUnavailableError`; it never silently switches to a direct connection. Robots checks
+and browser requests use the selected proxy too.
+
 ## 🔒 Security note on URL fetching
 
 By default SoloCrawl refuses to fetch localhost, link-local, private, reserved, and
 cloud-metadata addresses. It checks literal hosts, DNS-resolved A/AAAA records, HTTP redirect
-targets, and Playwright's final browser URL. SoloCrawl is still a single-user local tool, not a
+targets, and every routed browser request (including frames and subresources). Browser redirects
+are fetched one hop at a time, service workers and WebSockets are blocked, and the final browser URL
+is checked. SoloCrawl is still a single-user local tool, not a
 hostile-multi-tenant proxy — do not expose it to untrusted network callers.
 `SOLOCRAWL_ALLOW_INTERNAL_URLS=true` disables these internal-target checks entirely (intended for
 trusted local development only).
+
+DNS checks and the eventual connection use separate resolution steps, so they do not eliminate
+DNS rebinding or a proxy resolving a hostname differently. Use network-level egress controls when
+strong isolation is needed. `robots.txt` is enforced on every HTTP redirect destination and browser
+request, with the existing fail-open policy for unavailable or redirected robots files.
+
+Browser main-page redirects retain their final URL. Redirected iframe, script and XHR subrequests
+are aborted after validating the destination: replaying them through Playwright's fetch API would
+change browser origin/relative-URL semantics and could forward authorization or POST bodies. This
+restriction may prevent some pages from rendering completely. Ordinary HTTP redirects still work.
 
 ## 🧩 Extending it
 
@@ -319,7 +355,9 @@ The whole point of the plugin layout is that adding a source is a single self-re
 core never changes. To add a search provider:
 
 1. Create `src/solocrawl/core/search/providers/myprovider.py` implementing `SearchProvider`.
-2. Register with `@register("myprovider", zero_config=True)` or as opt-in.
+2. Register with `@register("myprovider", zero_config=True, configurable=True)` or as opt-in.
+   Configurable providers accept `__init__(self, *, config: Config | None = None)`; selectors pass
+   the supplied configuration. Legacy zero-argument providers keep `configurable=False` (the default).
 3. Import the module in `src/solocrawl/core/search/providers/__init__.py` so registration runs.
 4. Add fixture-based tests in `tests/`.
 
@@ -335,6 +373,10 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+The MCP server uses FastMCP 4 / MCP SDK v2. Its five tools and stdio wire format stay the same;
+client-side Python protocol fields use snake_case (`input_schema`, `is_error`).
+See the [official migration guide](https://gofastmcp.com/getting-started/upgrading/from-fastmcp-3).
+
 Then run the quality gate:
 
 ```bash
@@ -345,6 +387,18 @@ pytest
 # …or all in one line:
 ruff check . && pyright && pytest
 ```
+
+For guided verification and shareable JSON feedback, see [docs/verification.md](docs/verification.md):
+
+```bash
+python scripts/verify_project.py --mode offline
+python scripts/verify_project.py --mode browser
+python scripts/verify_project.py --mode all
+```
+
+Live tests are optional. The normal suite excludes live and real-browser tests; CI runs local
+Chromium fixtures separately. Release checks are listed in
+[docs/release/CHECKLIST.md](docs/release/CHECKLIST.md).
 
 ## Ethics and terms of use
 

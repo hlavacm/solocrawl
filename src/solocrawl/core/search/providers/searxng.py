@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 _BASE_URL_ENV = "SOLOCRAWL_SEARXNG_URL"
 
 
-@register("searxng", required_env_key=_BASE_URL_ENV)
+@register("searxng", required_env_key=_BASE_URL_ENV, configurable=True)
 class SearxngProvider:
     """Query a self-hosted SearXNG instance's JSON search API."""
 

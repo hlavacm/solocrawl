@@ -40,7 +40,7 @@ room to refine them, as long as it preserves the principles below.
 - Shared `httpx.AsyncClient` (connection pooling, keep-alive) - one per process, not a new one per
   request.
 - URL safety is part of the fetch boundary: validate literal hosts, DNS-resolved addresses, each
-  redirect target, and Playwright's final browser URL unless `SOLOCRAWL_ALLOW_INTERNAL_URLS=true`.
+  redirect target, every routed browser request, and the final browser URL unless `SOLOCRAWL_ALLOW_INTERNAL_URLS=true`.
 - `fetcher.fetch(url, force_browser=False)`:
   - tries an httpx GET, sends the result to extraction
   - if the extracted content is suspiciously empty (or `force_browser`), falls back to Playwright
@@ -64,7 +64,9 @@ room to refine them, as long as it preserves the principles below.
   - a list of concrete proxies (SoloCrawl does the rotation)
   - a single rotating endpoint (the provider does the rotation) - just passed through
 - Selection strategy: round-robin / random / sticky-per-domain.
-- Health-checking (remove dead proxies) and retry with a different proxy on a block.
+- Health tracking removes failed endpoints and invalidates their sticky assignments. Retry with a
+  different healthy proxy; when none remains, raise `ProxyUnavailableError` without direct fallback.
+  Robots enforcement runs through the selected proxy as well.
 - **Handles auth uniformly for httpx and Playwright** - note: Playwright takes proxy auth
   differently (separate `username`/`password` fields in launch options), while httpx accepts
   `user:pass` in the URL. The calling layer must not have to deal with this.

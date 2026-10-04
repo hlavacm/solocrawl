@@ -52,3 +52,10 @@ Before writing anything: read `context/project.md`, `context/architecture.md`,
 `features/` and proceed per `agent-workflow.md`. When something is missing or contradictory in the
 brief, follow the principles in `context/` and decide sensibly - the room for judgment is
 intentional, but stay within the scope and non-goals in `project.md`.
+
+## Current verification and releases
+
+[Verification runner and feedback](verification.md) · [Feature roadmap](features/ROADMAP.md) ·
+[Release instructions](release/README.md) · [Release checklist](release/CHECKLIST.md)
+
+[Maintenance implementation and verification limits](maintenance.md)

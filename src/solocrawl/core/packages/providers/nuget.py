@@ -18,7 +18,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("nuget", ecosystem="nuget", zero_config=True)
+@register("nuget", ecosystem="nuget", zero_config=True, configurable=True)
 class NuGetProvider:
     """Fetch package metadata from NuGet.org."""
 

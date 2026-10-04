@@ -1,4 +1,4 @@
-"""Constraint-aware version resolution across ecosystems."""
+"""Constraint-aware version resolution using PEP 440 or SemVer ordering."""
 
 from __future__ import annotations
 
@@ -6,13 +6,15 @@ import operator
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import cmp_to_key
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
+from semver import Version as SemVersion
 
 
 class InvalidConstraintError(ValueError):
-    """Raised when a version constraint cannot be parsed."""
+    """Raised when a version constraint cannot be parsed completely."""
 
 
 @dataclass(frozen=True)
@@ -23,26 +25,12 @@ class VersionEntry:
     yanked: bool = False
 
 
-VersionPredicate = Callable[[Version], bool]
+ParsedVersion = Version | SemVersion
+VersionPredicate = Callable[[ParsedVersion], bool]
 ConstraintParser = Callable[[str], VersionPredicate]
 VersionNormalizer = Callable[[str], str]
-
-
-def _parse_pep440_constraint(constraint: str) -> VersionPredicate:
-    """Parse a PEP 440 specifier set (``>=4.2,<5``) into a predicate."""
-    try:
-        specifiers = SpecifierSet(constraint)
-    except InvalidSpecifier as exc:
-        msg = f"invalid version constraint: {constraint!r}"
-        raise InvalidConstraintError(msg) from exc
-
-    def matches(version: Version) -> bool:
-        return version in specifiers
-
-    return matches
-
-
-_OPERATORS: dict[str, Callable[[Version, Version], bool]] = {
+Bound = tuple[Callable[[int, int], bool], SemVersion]
+_OPERATORS = {
     ">=": operator.ge,
     "<=": operator.le,
     ">": operator.gt,
@@ -51,161 +39,188 @@ _OPERATORS: dict[str, Callable[[Version, Version], bool]] = {
     "=": operator.eq,
     "!=": operator.ne,
 }
+_TOKEN = r"[vV]?(?:\d+|[xX*])(?:\.(?:\d+|[xX*])){0,2}(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
+_COMPARATOR_RE = re.compile(r"(>=|<=|==|!=|>|<|=|\^|~)?\s*(" + _TOKEN + r")")
+_VERSION_RE = re.compile(r"[vV]?(\d+(?:\.\d+){0,2})([-+].*)?")
 
-# Matches a single semver comparator: an optional operator/caret/tilde followed by a version-ish
-# token (digits, dots, wildcards, pre-release/build metadata).
-_COMPARATOR_RE = re.compile(
-    r"(>=|<=|>|<|==|=|!=|\^|~)?\s*([vV]?[0-9][0-9A-Za-z.\-+]*|[vV]?[0-9]*[xX*][0-9A-Za-z.\-+xX*]*|\*)"
-)
+
+def _invalid(constraint: str) -> InvalidConstraintError:
+    return InvalidConstraintError(f"invalid version constraint: {constraint!r}")
+
+
+def _parse_pep440_constraint(constraint: str) -> VersionPredicate:
+    try:
+        specifiers = SpecifierSet(constraint)
+    except InvalidSpecifier as exc:
+        raise _invalid(constraint) from exc
+    return lambda version: (
+        isinstance(version, Version)
+        and specifiers.contains(
+            version,
+            prereleases=True,
+        )
+    )
+
+
+def _semver(text: str) -> SemVersion:
+    match = _VERSION_RE.fullmatch(text)
+    if match is None:
+        raise ValueError("invalid semantic version")
+    parts = match[1].split(".")
+    return SemVersion.parse(".".join(parts + ["0"] * (3 - len(parts))) + (match[2] or ""))
 
 
 def parse_semver_constraint(constraint: str) -> VersionPredicate:
-    """Parse an npm/Composer-style semver range into a predicate.
+    """Parse common caret, tilde, wildcard, hyphen, AND and OR SemVer ranges.
 
-    Supports ``^``/``~``, ``x``/``*`` wildcards, hyphen ranges, ``||`` (OR),
-    comma/space-separated AND clauses, and the usual comparators.
+    The entire input must match this grammar. Ecosystem-specific range syntax
+    outside this common subset is rejected rather than interpreted partially.
     """
     alternatives = [part.strip() for part in constraint.split("||")]
-    predicates = [_parse_semver_alternative(part, constraint) for part in alternatives if part]
-    if not predicates:
-        msg = f"invalid version constraint: {constraint!r}"
-        raise InvalidConstraintError(msg)
+    if not all(alternatives):
+        raise _invalid(constraint)
+    try:
+        predicates = [_parse_semver_alternative(part) for part in alternatives]
+    except ValueError as exc:
+        raise _invalid(constraint) from exc
 
-    def matches(version: Version) -> bool:
-        return any(predicate(version) for predicate in predicates)
-
-    return matches
-
-
-def _parse_semver_alternative(text: str, original: str) -> VersionPredicate:
-    hyphen = re.split(r"\s+-\s+", text)
-    if len(hyphen) == 2:
-        lower = _version_from_parts(_numeric_parts(hyphen[0], original))
-        upper = _version_from_parts(_numeric_parts(hyphen[1], original))
-        return lambda version: lower <= version <= upper
-
-    bounds: list[tuple[Callable[[Version, Version], bool], Version]] = []
-    matched_any = False
-    for match in _COMPARATOR_RE.finditer(text):
-        matched_any = True
-        bounds.extend(_comparator_bounds(match.group(1), match.group(2), original))
-
-    if not matched_any:
-        msg = f"invalid version constraint: {original!r}"
-        raise InvalidConstraintError(msg)
-
-    def matches(version: Version) -> bool:
-        return all(op(version, bound) for op, bound in bounds)
+    def matches(version: ParsedVersion) -> bool:
+        if isinstance(version, Version):
+            # Native numeric registries can have four release components. Keep their
+            # existing packaging ordering while applying the common range bounds.
+            try:
+                return any(
+                    all(op(_compare(version, _numeric_bound(bound)), 0) for op, bound in bounds)
+                    for bounds in predicates
+                )
+            except InvalidVersion as exc:
+                raise _invalid(constraint) from exc
+        candidate = version
+        return any(
+            all(op(candidate.compare(bound), 0) for op, bound in bounds) for bounds in predicates
+        )
 
     return matches
 
 
-def _comparator_bounds(
-    op_token: str | None,
-    version_token: str,
-    original: str,
-) -> list[tuple[Callable[[Version, Version], bool], Version]]:
-    token = version_token.strip()
-
-    if op_token in _OPERATORS:
-        return [(_OPERATORS[op_token], _version_or_error(token, original))]
-
-    if op_token == "^":
-        parts = _numeric_parts(token, original)
-        lower = _version_from_parts(parts)
-        return [(operator.ge, lower), (operator.lt, _caret_upper(parts))]
-
-    if op_token == "~":
-        parts = _numeric_parts(token, original)
-        lower = _version_from_parts(parts)
-        return [(operator.ge, lower), (operator.lt, _tilde_upper(parts))]
-
-    # No operator: bare version, wildcard, or partial range.
-    stripped = token.lstrip("vV")
-    if stripped in ("", "*", "x", "X"):
-        return [(operator.ge, Version("0"))]
-
-    has_wildcard = bool(re.search(r"[xX*]", stripped))
-    parts = _numeric_parts(token, original)
-    if has_wildcard or len(parts) < 3:
-        lower = _version_from_parts(parts)
-        return [(operator.ge, lower), (operator.lt, _partial_upper(parts))]
-
-    return [(operator.eq, _version_or_error(token, original))]
+def _numeric_bound(bound: SemVersion) -> Version:
+    if bound.prerelease == "0":
+        return Version(f"{bound.major}.{bound.minor}.{bound.patch}.dev0")
+    return Version(str(bound))
 
 
-def _numeric_parts(text: str, original: str) -> list[int]:
-    """Return the leading numeric ``major[.minor[.patch]]`` parts of a token."""
-    core = text.strip().lstrip("vV")
-    for separator in ("-", "+"):
-        index = core.find(separator)
-        if index != -1:
-            core = core[:index]
+def _parse_semver_alternative(text: str) -> list[Bound]:
+    hyphen = re.fullmatch(r"(" + _TOKEN + r")\s+-\s+(" + _TOKEN + r")", text)
+    if hyphen:
+        lower, upper = _semver(hyphen[1]), _semver(hyphen[2])
+        parts = _numeric_parts(hyphen[2])
+        if len(parts) < 3:
+            return [(operator.ge, lower), (operator.lt, _partial_upper(parts))]
+        return [(operator.ge, lower), (operator.le, upper)]
 
-    parts: list[int] = []
-    for piece in core.split("."):
-        if piece in ("x", "X", "*", ""):
+    bounds: list[Bound] = []
+    position = 0
+    while position < len(text):
+        match = _COMPARATOR_RE.match(text, position)
+        if match is None:
+            raise ValueError("unrecognized comparator")
+        bounds.extend(_comparator_bounds(match[1], match[2]))
+        position = match.end()
+        if position == len(text):
             break
-        if not piece.isdigit():
-            msg = f"invalid version constraint: {original!r}"
-            raise InvalidConstraintError(msg)
-        parts.append(int(piece))
+        separator = re.match(r"(?:\s*,\s*|\s+)", text[position:])
+        if separator is None:
+            raise ValueError("missing separator")
+        position += separator.end()
+        if position == len(text):
+            raise ValueError("missing comparator")
+    return bounds
 
-    if not parts:
-        msg = f"invalid version constraint: {original!r}"
-        raise InvalidConstraintError(msg)
+
+def _numeric_parts(token: str) -> list[int]:
+    core = re.split(r"[-+]", token.lstrip("vV"), maxsplit=1)[0]
+    pieces = core.split(".")
+    parts: list[int] = []
+    wildcard = False
+    for piece in pieces:
+        if piece in {"x", "X", "*"}:
+            wildcard = True
+        elif wildcard or not piece.isdigit():
+            raise ValueError("invalid wildcard")
+        else:
+            if len(piece) > 1 and piece.startswith("0"):
+                raise ValueError("leading zero")
+            parts.append(int(piece))
     return parts
 
 
-def _version_from_parts(parts: list[int]) -> Version:
-    padded = (parts + [0, 0, 0])[:3]
-    return Version(".".join(str(part) for part in padded))
+def _version_from_parts(parts: list[int]) -> SemVersion:
+    return SemVersion(*(parts + [0] * (3 - len(parts))))
 
 
-def _caret_upper(parts: list[int]) -> Version:
-    padded = (parts + [0, 0, 0])[:3]
-    for index, value in enumerate(padded):
-        if value != 0:
-            bumped = padded[:index] + [padded[index] + 1] + [0] * (2 - index)
-            return _version_from_parts(bumped)
-    # All-zero: bump the least-significant component that was provided.
-    last = min(len(parts), 3) - 1
-    bumped = [0, 0, 0]
-    bumped[last] = 1
-    return _version_from_parts(bumped)
+def _partial_upper(parts: list[int]) -> SemVersion:
+    bumped = parts[:-1] + [parts[-1] + 1]
+    return _version_from_parts(bumped).replace(prerelease="0")
 
 
-def _tilde_upper(parts: list[int]) -> Version:
-    if len(parts) >= 2:
-        return _version_from_parts([parts[0], parts[1] + 1, 0])
-    return _version_from_parts([parts[0] + 1, 0, 0])
-
-
-def _partial_upper(parts: list[int]) -> Version:
-    if len(parts) >= 2:
-        return _version_from_parts([parts[0], parts[1] + 1, 0])
-    return _version_from_parts([parts[0] + 1, 0, 0])
-
-
-def _version_or_error(token: str, original: str) -> Version:
-    try:
-        return Version(token)
-    except InvalidVersion as exc:
-        msg = f"invalid version constraint: {original!r}"
-        raise InvalidConstraintError(msg) from exc
+def _comparator_bounds(op: str | None, token: str) -> list[Bound]:
+    parts = _numeric_parts(token)
+    wildcard = bool(re.search(r"[xX*]", re.split(r"[-+]", token, maxsplit=1)[0]))
+    if not parts:
+        if op not in {None, "=", "=="} or "-" in token or "+" in token:
+            raise ValueError("invalid wildcard comparator")
+        return []
+    if wildcard:
+        if op not in {None, "=", "=="} or "-" in token or "+" in token:
+            raise ValueError("invalid wildcard comparator")
+        return [(operator.ge, _version_from_parts(parts)), (operator.lt, _partial_upper(parts))]
+    lower = _semver(token)
+    if op in _OPERATORS:
+        if len(parts) < 3 and lower.prerelease is None and lower.build is None:
+            if op == ">":
+                return [(operator.ge, _partial_upper(parts).replace(prerelease=None))]
+            if op == "<=":
+                return [(operator.lt, _partial_upper(parts))]
+            if op == "<":
+                return [(operator.lt, lower.replace(prerelease="0"))]
+            if op in {"=", "=="}:
+                return [(operator.ge, lower), (operator.lt, _partial_upper(parts))]
+            if op == "!=":
+                raise ValueError("partial exclusion comparator is unsupported")
+        return [(_OPERATORS[op], lower)]
+    if op == "^":
+        # For zero-major partials, only the components actually specified pin the range.
+        index = next((i for i, part in enumerate(parts) if part), len(parts) - 1)
+        upper = _version_from_parts(parts[:index] + [parts[index] + 1]).replace(prerelease="0")
+        return [(operator.ge, lower), (operator.lt, upper)]
+    if op == "~":
+        return [(operator.ge, lower), (operator.lt, _partial_upper(parts[:2]))]
+    if len(parts) < 3 and lower.prerelease is None and lower.build is None:
+        return [(operator.ge, lower), (operator.lt, _partial_upper(parts))]
+    return [(operator.eq, lower)]
 
 
 def _parse_version(
-    version: str,
-    *,
-    normalizer: VersionNormalizer | None = None,
-) -> Version | None:
+    version: str, *, normalizer: VersionNormalizer | None = None, semver: bool = False
+) -> ParsedVersion | None:
     if normalizer is not None:
         version = normalizer(version)
     try:
-        return Version(version)
-    except InvalidVersion:
+        return _semver(version) if semver else Version(version)
+    except InvalidVersion, ValueError:
         return None
+
+
+def _compare(left: ParsedVersion, right: ParsedVersion) -> int:
+    if isinstance(left, SemVersion) and isinstance(right, SemVersion):
+        return left.compare(right)
+    if isinstance(left, Version) and isinstance(right, Version):
+        return (left > right) - (left < right)
+    raise TypeError("cannot compare version schemes")
+
+
+def _is_prerelease(version: ParsedVersion) -> bool:
+    return bool(version.prerelease) if isinstance(version, SemVersion) else version.is_prerelease
 
 
 def resolve_latest(
@@ -215,35 +230,27 @@ def resolve_latest(
     allow_prerelease: bool = False,
     constraint_parser: ConstraintParser | None = None,
     version_normalizer: VersionNormalizer | None = None,
+    semver: bool | None = None,
 ) -> str | None:
-    """Return the highest version satisfying optional constraints."""
-    predicate: VersionPredicate | None = None
-    if constraint is not None and constraint.strip():
+    """Return the highest eligible version; SemVer parsers select SemVer ordering."""
+    predicate = None
+    if constraint is not None:
         parser = constraint_parser or _parse_pep440_constraint
         predicate = parser(constraint.strip())
-
-    candidates: list[tuple[Version, str]] = []
+    use_semver = constraint_parser is parse_semver_constraint if semver is None else semver
+    candidates: list[tuple[ParsedVersion, str]] = []
     for item in versions:
-        if isinstance(item, VersionEntry):
-            if item.yanked:
-                continue
-            version_str = item.version
-        else:
-            version_str = item
-
-        parsed = _parse_version(version_str, normalizer=version_normalizer)
-        if parsed is None:
+        if isinstance(item, VersionEntry) and item.yanked:
             continue
-        if not allow_prerelease and parsed.is_prerelease:
+        text = item.version if isinstance(item, VersionEntry) else item
+        parsed = _parse_version(text, normalizer=version_normalizer, semver=use_semver)
+        if parsed is None or (not allow_prerelease and _is_prerelease(parsed)):
             continue
-        if predicate is not None and not predicate(parsed):
-            continue
-        candidates.append((parsed, version_str))
-
+        if predicate is None or predicate(parsed):
+            candidates.append((parsed, text))
     if not candidates:
         return None
-
-    return max(candidates, key=lambda item: item[0])[1]
+    return max(candidates, key=cmp_to_key(lambda a, b: _compare(a[0], b[0])))[1]
 
 
 def previous_versions(
@@ -253,34 +260,27 @@ def previous_versions(
     count: int = 3,
     allow_prerelease: bool = False,
     version_normalizer: VersionNormalizer | None = None,
+    semver: bool = False,
 ) -> list[str]:
-    """Return a few versions immediately below ``latest``."""
-    parsed_latest = _parse_version(latest, normalizer=version_normalizer)
+    """Return eligible versions immediately below ``latest`` using the same scheme."""
+    parsed_latest = _parse_version(latest, normalizer=version_normalizer, semver=semver)
     if parsed_latest is None:
         return []
-
-    candidates: list[tuple[Version, str]] = []
+    candidates: list[tuple[ParsedVersion, str]] = []
     for item in versions:
-        if isinstance(item, VersionEntry):
-            if item.yanked:
-                continue
-            version_str = item.version
-        else:
-            version_str = item
-
-        parsed = _parse_version(version_str, normalizer=version_normalizer)
-        if parsed is None or parsed >= parsed_latest:
+        if isinstance(item, VersionEntry) and item.yanked:
             continue
-        if not allow_prerelease and parsed.is_prerelease:
+        text = item.version if isinstance(item, VersionEntry) else item
+        parsed = _parse_version(text, normalizer=version_normalizer, semver=semver)
+        if parsed is None or _compare(parsed, parsed_latest) >= 0:
             continue
-        candidates.append((parsed, version_str))
-
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    return [version for _, version in candidates[: max(0, count)]]
+        if not allow_prerelease and _is_prerelease(parsed):
+            continue
+        candidates.append((parsed, text))
+    candidates.sort(key=cmp_to_key(lambda a, b: _compare(a[0], b[0])), reverse=True)
+    return [text for _, text in candidates[: max(0, count)]]
 
 
 def normalize_go_module_version(version: str) -> str:
-    """Strip a leading ``v`` so Go module tags parse as semver."""
-    if version.startswith(("v", "V")):
-        return version[1:]
-    return version
+    """Strip a leading ``v`` so Go module tags parse as SemVer."""
+    return version[1:] if version.startswith(("v", "V")) else version

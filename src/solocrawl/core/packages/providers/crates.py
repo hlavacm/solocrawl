@@ -18,7 +18,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("crates", ecosystem="crates", zero_config=True)
+@register("crates", ecosystem="crates", zero_config=True, configurable=True)
 class CratesProvider:
     """Fetch package metadata from crates.io."""
 

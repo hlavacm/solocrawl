@@ -18,7 +18,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("pub", ecosystem="pub", zero_config=True)
+@register("pub", ecosystem="pub", zero_config=True, configurable=True)
 class PubProvider:
     """Fetch package metadata from pub.dev."""
 

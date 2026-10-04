@@ -18,7 +18,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("npm", ecosystem="npm", zero_config=True)
+@register("npm", ecosystem="npm", zero_config=True, configurable=True)
 class NpmProvider:
     """Fetch package metadata from the npm registry."""
 

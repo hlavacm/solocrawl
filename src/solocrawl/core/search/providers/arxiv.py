@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 
-@register("arxiv")
+@register("arxiv", configurable=True)
 class ArxivProvider:
     """Search arXiv preprints via the official Atom API."""
 
@@ -51,7 +51,7 @@ class ArxivProvider:
             response.raise_for_status()
             body = response.text
         except httpx.HTTPError as exc:
-            logger.warning("arxiv search failed for %r: %s", stripped, exc)
+            logger.warning("arxiv search failed for %r: %s: %s", stripped, type(exc).__name__, exc)
             return []
 
         return _parse_arxiv_atom(body, limit=limit)

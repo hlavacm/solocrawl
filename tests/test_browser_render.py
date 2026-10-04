@@ -15,6 +15,7 @@ class _Page:
     def __init__(self, fail: bool = False) -> None:
         self._fail = fail
         self.url = "about:blank"
+        self.main_frame = object()
 
     async def goto(self, url: str, **_kw: object) -> None:
         if self._fail:
@@ -28,6 +29,12 @@ class _Page:
 class _Context:
     def __init__(self, fail: bool = False) -> None:
         self._fail = fail
+
+    async def route_web_socket(self, pattern: str, handler: object) -> None:
+        pass
+
+    async def route(self, pattern: str, handler: object) -> None:
+        pass
 
     async def new_page(self) -> _Page:
         return _Page(self._fail)
@@ -44,7 +51,9 @@ class _Browser:
     def is_connected(self) -> bool:
         return self._connected
 
-    async def new_context(self, proxy: object = None) -> _Context:
+    async def new_context(
+        self, proxy: object = None, service_workers: str = "block", user_agent: str | None = None
+    ) -> _Context:
         return _Context(self._fail)
 
     async def close(self) -> None:

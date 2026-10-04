@@ -6,7 +6,6 @@ from solocrawl.core.search.providers.github import _parse_github_payload
 from solocrawl.core.search.providers.hackernews import _parse_hn_payload
 from solocrawl.core.search.providers.mdn import _parse_mdn_payload
 from solocrawl.core.search.providers.pubmed import _extract_ids, _parse_pubmed_summary
-from solocrawl.core.search.providers.reddit import _parse_reddit_payload
 from solocrawl.core.search.providers.searxng import _parse_searxng_payload
 from solocrawl.core.search.providers.stackexchange import _parse_search_response
 from solocrawl.core.search.providers.wikidata import _parse_wikidata_payload
@@ -15,7 +14,6 @@ from solocrawl.core.search.providers.wikidata import _parse_wikidata_payload
 def test_parsers_reject_non_dict_payload() -> None:
     assert _parse_github_payload("nope", limit=5) == []
     assert _parse_mdn_payload("nope", limit=5) == []
-    assert _parse_reddit_payload("nope", limit=5) == []
     assert _parse_searxng_payload("nope", limit=5) == []
     assert _parse_hn_payload("nope", limit=5) == []
     assert _parse_wikidata_payload("nope", limit=5) == []
@@ -40,21 +38,6 @@ def test_github_skips_malformed_items() -> None:
 def test_mdn_skips_malformed_items() -> None:
     payload = {"documents": ["x", {"title": "T"}, {"title": "Ok", "mdn_url": "/a"}]}
     results = _parse_mdn_payload(payload, limit=5)
-    assert [r.title for r in results] == ["Ok"]
-
-
-def test_reddit_skips_malformed_items() -> None:
-    payload = {
-        "data": {
-            "children": [
-                "x",
-                {"data": "notdict"},
-                {"data": {"title": "T"}},  # missing permalink
-                {"data": {"title": "Ok", "permalink": "/r/x/1/"}},
-            ]
-        }
-    }
-    results = _parse_reddit_payload(payload, limit=5)
     assert [r.title for r in results] == ["Ok"]
 
 

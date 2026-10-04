@@ -18,7 +18,6 @@ from solocrawl.core.discovery import (
     provider_status_note,
 )
 from solocrawl.core.fetch import (
-    FetchUrlError,
     RobotsDisallowedError,
     close_browser,
     close_client,
@@ -40,6 +39,7 @@ from solocrawl.core.packages.providers import (  # noqa: F401
 )
 from solocrawl.core.packages.providers.base import PackageNotFoundError
 from solocrawl.core.packages.resolver import InvalidConstraintError
+from solocrawl.core.proxy import ProxyUnavailableError, redact_proxy_credentials
 from solocrawl.core.research import (
     MAX_RESEARCH_DEPTH,
     research_to_markdown,
@@ -203,12 +203,12 @@ async def scrape(url: str) -> str:
     """
     try:
         result = await fetch(url)
-    except (FetchUrlError, RobotsDisallowedError) as exc:
+    except (ValueError, RobotsDisallowedError, ProxyUnavailableError) as exc:
         return f"error: {exc}"
     except httpx.HTTPStatusError as exc:
         return f"error: HTTP {exc.response.status_code} for {url}"
     except httpx.RequestError as exc:
-        return f"error: network error: {exc}"
+        return f"error: network error: {redact_proxy_credentials(str(exc))}"
 
     return _truncate_mcp_output(_format_scrape_result(result))
 

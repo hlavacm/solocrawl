@@ -15,7 +15,6 @@ from solocrawl.core.search.providers.github import GitHubProvider
 from solocrawl.core.search.providers.hackernews import HackerNewsProvider
 from solocrawl.core.search.providers.mdn import MdnProvider
 from solocrawl.core.search.providers.pubmed import PubMedProvider
-from solocrawl.core.search.providers.reddit import RedditProvider
 from solocrawl.core.search.providers.searxng import SearxngProvider
 from solocrawl.core.search.providers.stackexchange import StackExchangeProvider
 from solocrawl.core.search.providers.wikidata import WikidataProvider
@@ -27,7 +26,6 @@ _ALL = [
     HackerNewsProvider,
     MdnProvider,
     PubMedProvider,
-    RedditProvider,
     SearxngProvider,
     StackExchangeProvider,
     WikidataProvider,
@@ -41,7 +39,6 @@ _HTTPX = [
     HackerNewsProvider,
     MdnProvider,
     PubMedProvider,
-    RedditProvider,
     StackExchangeProvider,
     WikidataProvider,
     WikipediaProvider,
@@ -83,6 +80,18 @@ async def test_arxiv_search_happy(read_fixture) -> None:
     await client.aclose()
 
 
+async def test_arxiv_timeout_diagnostic_identifies_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        await set_client_for_testing(client)
+        assert await ArxivProvider(config=Config()).search("python", limit=3) == []
+    assert "ReadTimeout" in caplog.text
+
+
 async def test_hackernews_search_happy(read_fixture) -> None:
     payload = json.loads(read_fixture("hackernews_search.json"))
 
@@ -115,32 +124,6 @@ async def test_mdn_search_happy() -> None:
     await set_client_for_testing(client)
     results = await MdnProvider(config=Config()).search("fetch", limit=5)
     assert results[0].url.endswith("/Web/API/Fetch_API")
-    await client.aclose()
-
-
-async def test_reddit_search_happy() -> None:
-    payload = {
-        "data": {
-            "children": [
-                {
-                    "data": {
-                        "title": "asyncio tips",
-                        "permalink": "/r/Python/comments/x/asyncio_tips/",
-                        "selftext": "body",
-                        "score": 10,
-                    }
-                }
-            ]
-        }
-    }
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=payload, request=request)
-
-    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    await set_client_for_testing(client)
-    results = await RedditProvider(config=Config()).search("asyncio", limit=5)
-    assert results[0].url.startswith("https://www.reddit.com/")
     await client.aclose()
 
 

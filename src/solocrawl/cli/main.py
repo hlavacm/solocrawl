@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Callable, Sequence
 
 from solocrawl.cli import batch, package, providers, research, scrape, search
@@ -45,7 +46,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         parser.print_help()
         raise SystemExit(2)
 
-    raise SystemExit(handler(args))
+    try:
+        code = handler(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        code = 1
+    raise SystemExit(code)
 
 
 if __name__ == "__main__":

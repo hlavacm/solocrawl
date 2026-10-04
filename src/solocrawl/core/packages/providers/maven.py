@@ -21,7 +21,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("maven", ecosystem="maven", zero_config=True)
+@register("maven", ecosystem="maven", zero_config=True, configurable=True)
 class MavenProvider:
     """Fetch package metadata from Maven Central."""
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 
 import httpx
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from solocrawl.config import Config
 from solocrawl.core.fetch.client import set_client_for_testing
 from solocrawl.core.search import clear_registry, select_providers
+from solocrawl.core.search import registry as search_registry
 from solocrawl.core.search.providers import arxiv as arxiv_module
 from solocrawl.core.search.providers import hackernews as hn_module
 from solocrawl.core.search.providers import pubmed as pubmed_module
@@ -21,12 +23,16 @@ from solocrawl.core.search.providers.wikidata import WikidataProvider, _parse_wi
 
 
 @pytest.fixture(autouse=True)
-def optin_providers_registered() -> None:
+def optin_providers_registered() -> Generator[None]:
+    saved = dict(search_registry._REGISTRY)
     clear_registry()
-    wikidata_module.register("wikidata")(WikidataProvider)
-    hn_module.register("hackernews")(HackerNewsProvider)
-    arxiv_module.register("arxiv")(ArxivProvider)
-    pubmed_module.register("pubmed")(PubMedProvider)
+    wikidata_module.register("wikidata", configurable=True)(WikidataProvider)
+    hn_module.register("hackernews", configurable=True)(HackerNewsProvider)
+    arxiv_module.register("arxiv", configurable=True)(ArxivProvider)
+    pubmed_module.register("pubmed", configurable=True)(PubMedProvider)
+    yield
+    clear_registry()
+    search_registry._REGISTRY.update(saved)
 
 
 def test_wikidata_parse_fixture(read_fixture) -> None:

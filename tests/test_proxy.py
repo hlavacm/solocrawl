@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from solocrawl.config import ProxyConfig, ProxyMode
 from solocrawl.core.proxy import (
     ProxyEndpoint,
     ProxyPool,
     ProxyStrategy,
+    ProxyUnavailableError,
     reset_proxy_pool_for_testing,
 )
 
@@ -66,7 +69,8 @@ def test_proxy_pool_marks_unhealthy_and_skips() -> None:
     assert endpoint is not None
 
     pool.mark_unhealthy(endpoint)
-    assert pool.select() is None
+    with pytest.raises(ProxyUnavailableError):
+        pool.select()
 
 
 def test_proxy_auth_shapes() -> None:

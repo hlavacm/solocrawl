@@ -11,6 +11,7 @@ from pathlib import Path
 from solocrawl.cli.document import render_fetch_document
 from solocrawl.core.fetch import close_browser, close_client, fetch
 from solocrawl.core.models import FetchResult
+from solocrawl.core.proxy import redact_proxy_credentials
 
 
 def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -76,7 +77,7 @@ async def _batch(args: argparse.Namespace) -> int:
     for url, outcome in zip(urls, outcomes, strict=True):
         if isinstance(outcome, BaseException):
             failures += 1
-            print(f"error: {url}: {outcome}", file=sys.stderr)
+            print(f"error: {url}: {redact_proxy_credentials(str(outcome))}", file=sys.stderr)
             continue
         if not _emit(url, outcome, out_dir):
             failures += 1

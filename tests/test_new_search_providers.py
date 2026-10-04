@@ -1,4 +1,4 @@
-"""Tests for the opt-in GitHub / MDN / Reddit / SearXNG search providers."""
+"""Tests for the opt-in GitHub / MDN / SearXNG search providers."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from solocrawl.core.fetch.client import set_client_for_testing
 from solocrawl.core.search import select_providers
 from solocrawl.core.search.providers.github import GitHubProvider, _parse_github_payload
 from solocrawl.core.search.providers.mdn import MdnProvider, _parse_mdn_payload
-from solocrawl.core.search.providers.reddit import RedditProvider, _parse_reddit_payload
 from solocrawl.core.search.providers.searxng import SearxngProvider, _parse_searxng_payload
 
 
@@ -51,29 +50,6 @@ def test_parse_mdn_payload_makes_absolute_url() -> None:
 
     assert results[0].url == "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
     assert results[0].source == "mdn"
-
-
-def test_parse_reddit_payload_uses_permalink() -> None:
-    payload = {
-        "data": {
-            "children": [
-                {
-                    "data": {
-                        "title": "Best asyncio patterns?",
-                        "permalink": "/r/Python/comments/abc/best_asyncio/",
-                        "url": "https://example.com/external",
-                        "selftext": "x" * 500,
-                        "score": 42,
-                    }
-                }
-            ]
-        }
-    }
-    results = _parse_reddit_payload(payload, limit=5)
-
-    assert results[0].url == "https://www.reddit.com/r/Python/comments/abc/best_asyncio/"
-    assert len(results[0].snippet) == 300
-    assert results[0].score == 42.0
 
 
 def test_parse_searxng_payload() -> None:
@@ -135,7 +111,6 @@ def only_new_providers() -> Generator[None]:
     search_registry._REGISTRY.clear()
     search_registry.register("github")(GitHubProvider)
     search_registry.register("mdn")(MdnProvider)
-    search_registry.register("reddit")(RedditProvider)
     search_registry.register("searxng", required_env_key="SOLOCRAWL_SEARXNG_URL")(SearxngProvider)
     try:
         yield

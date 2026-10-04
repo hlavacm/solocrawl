@@ -223,3 +223,6 @@ ms-playwright/
 
 # Pyright
 pyrightconfig.json.user
+
+# Local verification reports and build artifacts
+artifacts/verification/

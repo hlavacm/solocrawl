@@ -4,17 +4,29 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING, cast
+from urllib.parse import urljoin, urlparse
 
-from solocrawl.config import BrowserConfig, ConcurrencyConfig, ProxyConfig
-from solocrawl.core.fetch.url_validation import ensure_fetch_url_resolves_allowed
+import httpx
+
+from solocrawl.config import BrowserConfig, ConcurrencyConfig, FetchConfig, ProxyConfig
+from solocrawl.core.fetch.client import get_client, resolve_user_agent
+from solocrawl.core.fetch.robots import RobotsDisallowedError, is_fetch_allowed
+from solocrawl.core.fetch.url_validation import FetchUrlError, ensure_fetch_url_resolves_allowed
 from solocrawl.core.proxy import get_proxy_pool
 
 if TYPE_CHECKING:
-    from playwright.async_api import Browser, Playwright  # pyright: ignore[reportMissingImports]
+    from playwright.async_api import (  # pyright: ignore[reportMissingImports]
+        Browser,
+        BrowserContext,
+        Playwright,
+        ProxySettings,
+        Request,
+        Route,
+        WebSocketRoute,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +59,7 @@ async def fetch_rendered_html(
     browser_config: BrowserConfig,
     proxy_config: ProxyConfig | None = None,
     allow_internal_urls: bool = False,
+    fetch_config: FetchConfig | None = None,
 ) -> RenderedPage | None:
     """Render a page with Playwright and return its HTML, or None if unavailable."""
     if not browser_config.allowed or not playwright_available():
@@ -61,25 +74,121 @@ async def fetch_rendered_html(
     )
     playwright_proxy = endpoint.playwright_proxy() if endpoint is not None else None
 
+    policy = fetch_config or FetchConfig()
     semaphore = _get_browser_semaphore(concurrency)
     async with semaphore:
         try:
-            await ensure_fetch_url_resolves_allowed(
-                url,
-                allow_internal=allow_internal_urls,
-            )
-            async with _browser_context(proxy=playwright_proxy) as context:
-                page = await context.new_page()
-                timeout_ms = int(concurrency.timeout_seconds * 1000)
-                await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-                await ensure_fetch_url_resolves_allowed(
-                    page.url,
-                    allow_internal=allow_internal_urls,
+            await ensure_fetch_url_resolves_allowed(url, allow_internal=allow_internal_urls)
+            async with AsyncExitStack() as stack:
+                if endpoint is not None:
+                    robots_client = await stack.enter_async_context(
+                        httpx.AsyncClient(
+                            proxy=endpoint.httpx_proxy_url(),
+                            timeout=concurrency.timeout_seconds,
+                            trust_env=False,
+                            headers={"User-Agent": resolve_user_agent(policy.user_agent)},
+                        )
+                    )
+                else:
+                    robots_client = await get_client(concurrency, user_agent=policy.user_agent)
+                context = await stack.enter_async_context(
+                    _browser_context(
+                        proxy=playwright_proxy, user_agent=resolve_user_agent(policy.user_agent)
+                    )
                 )
-                return RenderedPage(html=await page.content(), url=page.url)
-        except Exception as exc:
-            logger.warning("playwright fetch failed for %s: %s", url, exc)
+                return await _render_guarded(
+                    context,
+                    url,
+                    concurrency=concurrency,
+                    policy=policy,
+                    allow_internal=allow_internal_urls,
+                    robots_client=robots_client,
+                )
+        except FetchUrlError, RobotsDisallowedError:
+            raise
+        except Exception:
+            # Exception text may contain proxy credentials; log only the requested page.
+            logger.warning("playwright fetch failed for %s", url)
             return None
+
+
+async def _render_guarded(
+    context: BrowserContext,
+    url: str,
+    *,
+    concurrency: ConcurrencyConfig,
+    policy: FetchConfig,
+    allow_internal: bool,
+    robots_client: httpx.AsyncClient,
+) -> RenderedPage:
+    page = await context.new_page()
+    timeout_ms = int(concurrency.timeout_seconds * 1000)
+    redirect_target: str | None = None
+    navigation_error: Exception | None = None
+
+    async def check(target: str) -> None:
+        await ensure_fetch_url_resolves_allowed(target, allow_internal=allow_internal)
+        if policy.respect_robots and not await is_fetch_allowed(
+            target,
+            user_agent=resolve_user_agent(policy.user_agent),
+            client=robots_client,
+        ):
+            raise RobotsDisallowedError(f"robots.txt disallows fetching {target}")
+
+    async def intercept(route: Route, request: Request) -> None:
+        nonlocal redirect_target, navigation_error
+        main_navigation = request.is_navigation_request() and request.frame == page.main_frame
+        target = request.url
+        try:
+            await check(target)
+            # Fetch one hop only: Chromium must never follow an unchecked redirect.
+            response = await route.fetch(max_redirects=0, timeout=timeout_ms)
+            if response.status in {301, 302, 303, 307, 308} and "location" in response.headers:
+                next_url = urljoin(target, response.headers["location"])
+                await check(next_url)
+                await response.dispose()
+                if main_navigation:
+                    redirect_target = next_url
+                # A subrequest cannot be replayed/fulfilled at another URL without changing
+                # auth, body, relative URLs and browser origin semantics. Fail closed instead.
+                await route.abort()
+                return
+            await route.fulfill(response=response)
+        except Exception as exc:
+            if main_navigation:
+                navigation_error = exc
+            await route.abort()
+
+    async def block_websocket(route: WebSocketRoute) -> None:
+        # WebSocket connections bypass ordinary HTTP routing and are unnecessary for extraction.
+        await route.close()
+
+    await context.route_web_socket("**/*", block_websocket)
+    await context.route("**/*", intercept)
+    target = url
+    for _ in range(21):
+        redirect_target = None
+        navigation_error = None
+        await check(target)
+        try:
+            await page.goto(target, wait_until="networkidle", timeout=timeout_ms)
+        except Exception:
+            if navigation_error is not None:
+                raise navigation_error from None
+            if redirect_target is None:
+                raise
+        if navigation_error is not None:
+            raise navigation_error
+        if redirect_target is not None:
+            target = redirect_target
+            # Aborting the old navigation can asynchronously commit Chromium's error page.
+            # Close it before navigating again, retaining cookies in the same context.
+            await page.close()
+            page = await context.new_page()
+            continue
+        await check(page.url)
+        return RenderedPage(html=await page.content(), url=page.url)
+    raise FetchUrlError("too many browser redirects")
 
 
 def _get_browser_semaphore(concurrency: ConcurrencyConfig) -> asyncio.Semaphore:
@@ -92,9 +201,11 @@ def _get_browser_semaphore(concurrency: ConcurrencyConfig) -> asyncio.Semaphore:
 
 
 @asynccontextmanager
-async def _browser_context(*, proxy: dict[str, str] | None = None):
+async def _browser_context(*, proxy: dict[str, str] | None = None, user_agent: str | None = None):
     browser = await _get_browser()
-    context = await browser.new_context(proxy=proxy)
+    context = await browser.new_context(
+        proxy=cast("ProxySettings | None", proxy), service_workers="block", user_agent=user_agent
+    )
     try:
         yield context
     finally:

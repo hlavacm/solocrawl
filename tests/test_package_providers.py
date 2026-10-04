@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 
 import httpx
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from solocrawl.config import Config
 from solocrawl.core.fetch.client import set_client_for_testing
 from solocrawl.core.packages import clear_registry, select_provider_for_ecosystem
+from solocrawl.core.packages import registry as pkg_registry
 from solocrawl.core.packages.providers import crates as crates_module
 from solocrawl.core.packages.providers import golang as golang_module
 from solocrawl.core.packages.providers import maven as maven_module
@@ -51,20 +53,38 @@ DEFAULT_ECOSYSTEMS = (
 
 
 @pytest.fixture(autouse=True)
-def package_providers_registered() -> None:
+def package_providers_registered() -> Generator[None]:
+    saved = dict(pkg_registry._REGISTRY)
     clear_registry()
-    pypi_module.register("pypi", ecosystem="pypi", zero_config=True)(PyPIProvider)
-    npm_module.register("npm", ecosystem="npm", zero_config=True)(NpmProvider)
-    packagist_module.register("packagist", ecosystem="packagist", zero_config=True)(
-        PackagistProvider
+    pypi_module.register("pypi", ecosystem="pypi", zero_config=True, configurable=True)(
+        PyPIProvider
     )
-    crates_module.register("crates", ecosystem="crates", zero_config=True)(CratesProvider)
-    nuget_module.register("nuget", ecosystem="nuget", zero_config=True)(NuGetProvider)
-    maven_module.register("maven", ecosystem="maven", zero_config=True)(MavenProvider)
-    rubygems_module.register("rubygems", ecosystem="rubygems", zero_config=True)(RubyGemsProvider)
-    golang_module.register("go", ecosystem="go", zero_config=True)(GoModuleProvider)
-    pub_module.register("pub", ecosystem="pub", zero_config=True)(PubProvider)
-    swift_module.register("swift", ecosystem="swift", zero_config=True)(SwiftProvider)
+    npm_module.register("npm", ecosystem="npm", zero_config=True, configurable=True)(NpmProvider)
+    packagist_module.register(
+        "packagist", ecosystem="packagist", zero_config=True, configurable=True
+    )(PackagistProvider)
+    crates_module.register("crates", ecosystem="crates", zero_config=True, configurable=True)(
+        CratesProvider
+    )
+    nuget_module.register("nuget", ecosystem="nuget", zero_config=True, configurable=True)(
+        NuGetProvider
+    )
+    maven_module.register("maven", ecosystem="maven", zero_config=True, configurable=True)(
+        MavenProvider
+    )
+    rubygems_module.register("rubygems", ecosystem="rubygems", zero_config=True, configurable=True)(
+        RubyGemsProvider
+    )
+    golang_module.register("go", ecosystem="go", zero_config=True, configurable=True)(
+        GoModuleProvider
+    )
+    pub_module.register("pub", ecosystem="pub", zero_config=True, configurable=True)(PubProvider)
+    swift_module.register("swift", ecosystem="swift", zero_config=True, configurable=True)(
+        SwiftProvider
+    )
+    yield
+    clear_registry()
+    pkg_registry._REGISTRY.update(saved)
 
 
 def test_pypi_parse_fixture(read_fixture) -> None:

@@ -14,7 +14,7 @@ from solocrawl.core.search.registry import register
 logger = logging.getLogger(__name__)
 
 
-@register("wikidata")
+@register("wikidata", configurable=True)
 class WikidataProvider:
     """Search Wikidata entities via the MediaWiki API."""
 

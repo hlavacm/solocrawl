@@ -8,7 +8,7 @@ from typing import TypeVar
 
 from solocrawl.core.search.protocol import SearchProvider
 
-ProviderFactory = Callable[[], SearchProvider]
+ProviderFactory = Callable[..., SearchProvider]
 ProviderType = TypeVar("ProviderType", bound=SearchProvider)
 
 
@@ -20,6 +20,7 @@ class ProviderRegistration:
     zero_config: bool
     required_env_key: str | None
     factory: ProviderFactory
+    configurable: bool = False
 
 
 _REGISTRY: dict[str, ProviderRegistration] = {}
@@ -30,6 +31,7 @@ def register(
     *,
     zero_config: bool = False,
     required_env_key: str | None = None,
+    configurable: bool = False,
 ) -> Callable[[type[ProviderType]], type[ProviderType]]:
     """Register a search provider class under a stable name."""
 
@@ -43,6 +45,7 @@ def register(
             zero_config=zero_config,
             required_env_key=required_env_key,
             factory=cls,
+            configurable=configurable,
         )
         _REGISTRY[name] = registration
 

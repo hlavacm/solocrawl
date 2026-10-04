@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 
 import pytest
 
 from solocrawl.config import Config
 from solocrawl.core.search import clear_registry, select_providers
+from solocrawl.core.search import registry as search_registry
 from solocrawl.core.search.providers import duckduckgo as duckduckgo_module
 from solocrawl.core.search.providers.duckduckgo import (
     DuckDuckGoProvider,
@@ -17,9 +19,15 @@ from solocrawl.core.search.providers.duckduckgo import (
 
 
 @pytest.fixture(autouse=True)
-def duckduckgo_registered() -> None:
+def duckduckgo_registered() -> Generator[None]:
+    saved = dict(search_registry._REGISTRY)
     clear_registry()
-    duckduckgo_module.register("duckduckgo", zero_config=True)(DuckDuckGoProvider)
+    duckduckgo_module.register("duckduckgo", zero_config=True, configurable=True)(
+        DuckDuckGoProvider
+    )
+    yield
+    clear_registry()
+    search_registry._REGISTRY.update(saved)
 
 
 def test_map_ddgs_results_fixture(read_fixture) -> None:
@@ -35,9 +43,10 @@ def test_map_ddgs_results_fixture(read_fixture) -> None:
 async def test_duckduckgo_search_uses_to_thread(read_fixture, monkeypatch) -> None:
     fixture = json.loads(read_fixture("ddgs_text.json"))
 
-    def fake_run(query: str, *, limit: int) -> list[dict[str, object]]:
+    def fake_run(query: str, *, limit: int, timeout: float) -> list[dict[str, object]]:
         assert query == "python asyncio"
         assert limit == 2
+        assert timeout == 30.0
         return fixture
 
     monkeypatch.setattr(
@@ -53,7 +62,7 @@ async def test_duckduckgo_search_uses_to_thread(read_fixture, monkeypatch) -> No
 
 @pytest.mark.asyncio
 async def test_duckduckgo_search_error_returns_empty_list(monkeypatch) -> None:
-    def failing_run(query: str, *, limit: int) -> list[dict[str, object]]:
+    def failing_run(query: str, *, limit: int, timeout: float) -> list[dict[str, object]]:
         msg = "rate limited"
         raise RuntimeError(msg)
 
@@ -77,6 +86,9 @@ def test_duckduckgo_is_zero_config_in_selector() -> None:
 
 def test_run_ddgs_text_delegates_to_ddgs(monkeypatch) -> None:
     class FakeDDGS:
+        def __init__(self, *, timeout: float) -> None:
+            assert timeout == 30.0
+
         def text(self, query: str, **kwargs: object) -> list[dict[str, str]]:
             assert query == "hello"
             assert kwargs["max_results"] == 3

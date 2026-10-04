@@ -17,7 +17,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("rubygems", ecosystem="rubygems", zero_config=True)
+@register("rubygems", ecosystem="rubygems", zero_config=True, configurable=True)
 class RubyGemsProvider:
     """Fetch package metadata from RubyGems.org."""
 

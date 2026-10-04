@@ -14,7 +14,7 @@ from solocrawl.core.search.registry import register
 logger = logging.getLogger(__name__)
 
 
-@register("hackernews")
+@register("hackernews", configurable=True)
 class HackerNewsProvider:
     """Search Hacker News posts via the Algolia API."""
 

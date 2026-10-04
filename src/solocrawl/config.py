@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -34,6 +36,12 @@ class ConcurrencyConfig:
     timeout_seconds: float = 30.0
     max_retries: int = 3
 
+    def __post_init__(self) -> None:
+        _positive("SOLOCRAWL_MAX_CONCURRENCY", self.max_concurrent_fetches)
+        _positive("SOLOCRAWL_PER_DOMAIN_LIMIT", self.per_domain_limit)
+        _positive("SOLOCRAWL_TIMEOUT_SECONDS", self.timeout_seconds)
+        _positive("SOLOCRAWL_MAX_RETRIES", self.max_retries, zero_allowed=True)
+
 
 @dataclass(frozen=True)
 class ProxyConfig:
@@ -45,6 +53,28 @@ class ProxyConfig:
     endpoint: str | None = None
     username: str | None = None
     password: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.enabled:
+            return
+        urls = (self.endpoint,) if self.mode is ProxyMode.ENDPOINT else self.proxies
+        if not urls:
+            raise ValueError("SOLOCRAWL_PROXY_ENABLED requires a proxy list or endpoint")
+        for url in urls:
+            try:
+                parsed = urlparse(url or "")
+                valid = (
+                    bool(url and url.strip())
+                    and parsed.scheme in {"http", "https"}
+                    and parsed.hostname is not None
+                    and (parsed.port is None or parsed.port > 0)
+                )
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError(
+                    "SOLOCRAWL_PROXY_LIST / ENDPOINT requires valid HTTP(S) proxy URLs"
+                )
 
 
 @dataclass(frozen=True)
@@ -64,6 +94,10 @@ class FetchConfig:
     respect_robots: bool = True
     cache_ttl_seconds: int = 0
 
+    def __post_init__(self) -> None:
+        _positive("SOLOCRAWL_MAX_RESPONSE_BYTES", self.max_response_bytes)
+        _positive("SOLOCRAWL_CACHE_TTL_SECONDS", self.cache_ttl_seconds, zero_allowed=True)
+
 
 @dataclass(frozen=True)
 class Config:
@@ -74,6 +108,12 @@ class Config:
     browser: BrowserConfig = field(default_factory=BrowserConfig)
     fetch: FetchConfig = field(default_factory=FetchConfig)
     enabled_providers: frozenset[str] = frozenset()
+
+
+def _positive(name: str, value: float, *, zero_allowed: bool = False) -> None:
+    if not math.isfinite(value) or (value < 0 if zero_allowed else value <= 0):
+        bound = "non-negative" if zero_allowed else "positive"
+        raise ValueError(f"{name} must be finite and {bound}")
 
 
 def _parse_bool(value: str) -> bool:
@@ -106,19 +146,28 @@ def load_config(*, env: Mapping[str, str] | None = None) -> Config:
         raw = get(name)
         if raw is None:
             return default
-        return _parse_bool(raw)
+        try:
+            return _parse_bool(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} must be a boolean") from exc
 
     def get_int(name: str, default: int) -> int:
         raw = get(name)
         if raw is None:
             return default
-        return int(raw)
+        try:
+            return int(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} must be an integer") from exc
 
     def get_float(name: str, default: float) -> float:
         raw = get(name)
         if raw is None:
             return default
-        return float(raw)
+        try:
+            return float(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} must be a number") from exc
 
     def get_csv(name: str) -> tuple[str, ...]:
         raw = get(name)
@@ -127,7 +176,10 @@ def load_config(*, env: Mapping[str, str] | None = None) -> Config:
         return tuple(item.strip() for item in raw.split(",") if item.strip())
 
     proxy_mode_raw = get("SOLOCRAWL_PROXY_MODE")
-    proxy_mode = ProxyMode(proxy_mode_raw.lower()) if proxy_mode_raw else ProxyMode.LIST
+    try:
+        proxy_mode = ProxyMode(proxy_mode_raw.lower()) if proxy_mode_raw else ProxyMode.LIST
+    except ValueError as exc:
+        raise ValueError("SOLOCRAWL_PROXY_MODE must be list or endpoint") from exc
 
     return Config(
         concurrency=ConcurrencyConfig(

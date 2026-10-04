@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from solocrawl.config import Config, load_config
 from solocrawl.core.fetch import fetch
+from solocrawl.core.proxy import redact_proxy_credentials
 from solocrawl.core.search import federated_search, select_providers
 
 logger = logging.getLogger(__name__)
@@ -58,14 +59,15 @@ async def research(
     documents: list[ResearchDocument] = []
     for result, outcome in zip(top, fetched, strict=True):
         if isinstance(outcome, BaseException):
-            logger.warning("research fetch failed for %s: %s", result.url, outcome)
+            message = redact_proxy_credentials(str(outcome), cfg.proxy)
+            logger.warning("research fetch failed for %s: %s", result.url, message)
             documents.append(
                 ResearchDocument(
                     title=result.title,
                     url=result.url,
                     source=result.source,
                     content=None,
-                    error=str(outcome),
+                    error=message,
                 )
             )
         else:

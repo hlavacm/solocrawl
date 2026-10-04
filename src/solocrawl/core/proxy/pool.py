@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import os
 import random
+import re
 from dataclasses import dataclass
 from enum import StrEnum
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from solocrawl.config import ProxyConfig, ProxyMode
+
+
+class ProxyUnavailableError(RuntimeError):
+    """Raised when an enabled proxy pool has no healthy endpoint."""
 
 
 class ProxyStrategy(StrEnum):
@@ -29,23 +35,25 @@ class ProxyEndpoint:
 
     def httpx_proxy_url(self) -> str:
         """Return a proxy URL suitable for httpx."""
-        if self.username and self.password:
-            parsed = urlparse(self.url)
-            host = parsed.netloc or parsed.path
-            scheme = parsed.scheme or "http"
-            return f"{scheme}://{self.username}:{self.password}@{host}"
+        parsed = urlparse(self.url)
+        if self.username is not None:
+            host = parsed.netloc.rsplit("@", 1)[-1]
+            credentials = quote(self.username, safe="")
+            if self.password is not None:
+                credentials += ":" + quote(self.password, safe="")
+            return parsed._replace(netloc=f"{credentials}@{host}").geturl()
         return self.url
 
     def playwright_proxy(self) -> dict[str, str]:
-        """Return Playwright proxy settings."""
+        """Return Playwright settings with credentials outside the server URL."""
         parsed = urlparse(self.url)
-        host = parsed.netloc or parsed.path
-        scheme = parsed.scheme or "http"
-        settings = {"server": f"{scheme}://{host}"}
-        if self.username:
-            settings["username"] = self.username
-        if self.password:
-            settings["password"] = self.password
+        settings = {"server": parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[-1]).geturl()}
+        username = self.username if self.username is not None else parsed.username
+        password = self.password if self.password is not None else parsed.password
+        if username is not None:
+            settings["username"] = username if self.username is not None else unquote(username)
+        if password is not None:
+            settings["password"] = password if self.password is not None else unquote(password)
         return settings
 
 
@@ -102,6 +110,9 @@ class ProxyPool:
                     password=current.password,
                     healthy=False,
                 )
+                self._sticky = {
+                    key: value for key, value in self._sticky.items() if value.url != endpoint.url
+                }
                 break
 
     def select(self, *, domain: str | None = None) -> ProxyEndpoint | None:
@@ -111,7 +122,7 @@ class ProxyPool:
 
         candidates = self.healthy_endpoints()
         if not candidates:
-            return None
+            raise ProxyUnavailableError("no healthy proxy endpoint available")
 
         if self._config.mode is ProxyMode.ENDPOINT:
             return candidates[0]
@@ -148,3 +159,10 @@ def reset_proxy_pool_for_testing() -> None:
     """Clear the cached proxy pool (tests only)."""
     global _POOL
     _POOL = None
+
+
+def redact_proxy_credentials(message: str, config: ProxyConfig | None = None) -> str:
+    """Remove proxy URL credentials and known passwords from an error message."""
+    message = re.sub(r"(\b[a-zA-Z][\w+.-]*://)[^\s/@]+@", r"\1[redacted]@", message)
+    password = config.password if config is not None else os.environ.get("SOLOCRAWL_PROXY_PASSWORD")
+    return message.replace(password, "[redacted]") if password else message

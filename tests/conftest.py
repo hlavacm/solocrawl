@@ -49,3 +49,12 @@ async def reset_fetch_runtime_state() -> AsyncGenerator[None]:
     await set_client_for_testing(None)
     reset_robots_cache()
     reset_cache()
+
+
+@pytest.fixture(autouse=True)
+def prevent_real_browser_in_unit_tests(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Installing the optional browser must not turn fixture tests into network tests."""
+    if request.node.get_closest_marker("browser") is None:
+        monkeypatch.setattr("solocrawl.core.fetch.browser.playwright_available", lambda: False)

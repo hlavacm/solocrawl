@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 _MDN_BASE = "https://developer.mozilla.org"
 
 
-@register("mdn")
+@register("mdn", configurable=True)
 class MdnProvider:
     """Search MDN Web Docs via its public search API."""
 

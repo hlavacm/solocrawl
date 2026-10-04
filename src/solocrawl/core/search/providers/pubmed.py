@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 _EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 
-@register("pubmed")
+@register("pubmed", configurable=True)
 class PubMedProvider:
     """Search PubMed via NCBI E-utilities."""
 

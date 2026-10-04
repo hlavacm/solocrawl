@@ -110,6 +110,7 @@ async def test_fetch_rendered_html_rejects_internal_final_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakePage:
+        main_frame = object()
         url = "https://internal.example/secret"
 
         async def goto(self, url: str, *, wait_until: str, timeout: int) -> None:
@@ -119,11 +120,17 @@ async def test_fetch_rendered_html_rejects_internal_final_url(
             return "<html><body>secret</body></html>"
 
     class FakeContext:
+        async def route_web_socket(self, pattern: str, handler: object) -> None:
+            pass
+
+        async def route(self, pattern: str, handler: object) -> None:
+            pass
+
         async def new_page(self) -> FakePage:
             return FakePage()
 
     @asynccontextmanager
-    async def fake_browser_context(*, proxy=None):
+    async def fake_browser_context(*, proxy=None, user_agent=None):
         yield FakeContext()
 
     async def resolve(host: str, port: int | None):
@@ -139,13 +146,14 @@ async def test_fetch_rendered_html_rejects_internal_final_url(
     )
 
     config = Config()
-    rendered = await fetch_rendered_html(
-        "https://example.com/page",
-        concurrency=config.concurrency,
-        browser_config=config.browser,
-    )
+    from solocrawl.core.fetch.url_validation import FetchUrlError
 
-    assert rendered is None
+    with pytest.raises(FetchUrlError):
+        await fetch_rendered_html(
+            "https://example.com/page",
+            concurrency=config.concurrency,
+            browser_config=config.browser,
+        )
 
 
 async def test_close_browser_is_safe_when_not_started() -> None:

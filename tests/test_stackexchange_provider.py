@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 
 import httpx
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from solocrawl.config import Config
 from solocrawl.core.fetch.client import set_client_for_testing
 from solocrawl.core.search import clear_registry, select_providers
+from solocrawl.core.search import registry as search_registry
 from solocrawl.core.search.providers import stackexchange as stackexchange_module
 from solocrawl.core.search.providers.stackexchange import (
     StackExchangeProvider,
@@ -18,9 +20,15 @@ from solocrawl.core.search.providers.stackexchange import (
 
 
 @pytest.fixture(autouse=True)
-def stackexchange_registered() -> None:
+def stackexchange_registered() -> Generator[None]:
+    saved = dict(search_registry._REGISTRY)
     clear_registry()
-    stackexchange_module.register("stackexchange", zero_config=True)(StackExchangeProvider)
+    stackexchange_module.register("stackexchange", zero_config=True, configurable=True)(
+        StackExchangeProvider
+    )
+    yield
+    clear_registry()
+    search_registry._REGISTRY.update(saved)
 
 
 def test_parse_search_response_maps_fixture(read_fixture) -> None:

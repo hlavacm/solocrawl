@@ -139,6 +139,9 @@ def test_map_ddgs_results_skips_malformed_items() -> None:
 
 def test_run_ddgs_text_non_list(monkeypatch: pytest.MonkeyPatch) -> None:
     class _FakeDDGS:
+        def __init__(self, *, timeout: float) -> None:
+            assert timeout == 30.0
+
         def text(self, query: str, max_results: int) -> object:
             return None
 

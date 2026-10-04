@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 _HEADERS = {"Accept": "application/vnd.github+json"}
 
 
-@register("github")
+@register("github", configurable=True)
 class GitHubProvider:
     """Search public GitHub repositories via the REST search API."""
 

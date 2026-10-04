@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 _SEARCH_MATCH_RE = re.compile(r"<span class=\"searchmatch\">(.*?)</span>", re.IGNORECASE)
 
 
-@register("wikipedia", zero_config=True)
+@register("wikipedia", zero_config=True, configurable=True)
 class WikipediaProvider:
     """Search English Wikipedia using the official MediaWiki API."""
 

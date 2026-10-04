@@ -18,7 +18,7 @@ from solocrawl.core.packages.resolver import VersionEntry
 logger = logging.getLogger(__name__)
 
 
-@register("pypi", ecosystem="pypi", zero_config=True)
+@register("pypi", ecosystem="pypi", zero_config=True, configurable=True)
 class PyPIProvider:
     """Fetch package metadata from PyPI."""
 
@@ -104,12 +104,11 @@ def _parse_pypi_payload(
 def _pypi_versions(releases: dict[str, Any]) -> list[VersionEntry]:
     versions: list[VersionEntry] = []
     for version, files in releases.items():
-        yanked = False
-        if isinstance(files, list):
-            yanked = any(
-                isinstance(file_info, dict) and file_info.get("yanked") is True
-                for file_info in files
-            )
+        if not isinstance(files, list) or not files:
+            continue
+        yanked = all(
+            isinstance(file_info, dict) and file_info.get("yanked") is True for file_info in files
+        )
         versions.append(VersionEntry(version, yanked=yanked))
     return versions
 

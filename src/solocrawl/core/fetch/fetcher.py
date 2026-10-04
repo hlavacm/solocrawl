@@ -53,15 +53,16 @@ async def fetch(
     ensure_fetch_url_allowed(url, allow_internal=cfg.fetch.allow_internal_urls)
 
     use_cache = cfg.fetch.cache_ttl_seconds > 0 and not force_browser
+    cache_key = (url, cfg)
     if use_cache:
-        cached = cache_get(url)
+        cached = cache_get(cache_key)
         if cached is not None:
             return cached
 
     result = await _fetch_within_slots(url, cfg, force_browser=force_browser)
 
     if use_cache and result.status > 0:
-        cache_set(url, result, cfg.fetch.cache_ttl_seconds)
+        cache_set(cache_key, result, cfg.fetch.cache_ttl_seconds)
 
     return result
 
@@ -72,17 +73,6 @@ async def _fetch_within_slots(url: str, cfg: Config, *, force_browser: bool) -> 
             url,
             allow_internal=cfg.fetch.allow_internal_urls,
         )
-
-        if cfg.fetch.respect_robots:
-            client = await get_client(cfg.concurrency, user_agent=cfg.fetch.user_agent)
-            allowed = await is_fetch_allowed(
-                url,
-                user_agent=resolve_user_agent(cfg.fetch.user_agent),
-                client=client,
-            )
-            if not allowed:
-                msg = f"robots.txt disallows fetching {url}"
-                raise RobotsDisallowedError(msg)
 
         if force_browser:
             browser_result = await _fetch_with_browser(url, cfg)
@@ -201,6 +191,12 @@ async def _send_and_read(
             current_url,
             allow_internal=config.fetch.allow_internal_urls,
         )
+        if config.fetch.respect_robots and not await is_fetch_allowed(
+            current_url,
+            user_agent=resolve_user_agent(config.fetch.user_agent),
+            client=client,
+        ):
+            raise RobotsDisallowedError(f"robots.txt disallows fetching {current_url}")
         request = client.build_request("GET", current_url)
         response = await client.send(request, stream=True, follow_redirects=False)
         try:
@@ -311,6 +307,7 @@ async def _fetch_with_browser(url: str, config: Config) -> FetchResult | None:
         browser_config=config.browser,
         proxy_config=config.proxy,
         allow_internal_urls=config.fetch.allow_internal_urls,
+        fetch_config=config.fetch,
     )
     if rendered is None:
         return None

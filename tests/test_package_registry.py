@@ -16,6 +16,7 @@ from solocrawl.core.packages import (
     select_provider_for_ecosystem,
     select_providers,
 )
+from solocrawl.core.packages import registry as pkg_registry
 
 
 class DummyPyPIProvider:
@@ -50,11 +51,13 @@ class DummyOptInProvider:
 
 @pytest.fixture
 def dummy_package_providers() -> Generator[None]:
+    saved = dict(pkg_registry._REGISTRY)
     clear_registry()
     register("pypi", ecosystem="pypi", zero_config=True)(DummyPyPIProvider)
     register("crates", ecosystem="crates")(DummyOptInProvider)
     yield
     clear_registry()
+    pkg_registry._REGISTRY.update(saved)
 
 
 def test_package_registry_lists_providers(dummy_package_providers: None) -> None:

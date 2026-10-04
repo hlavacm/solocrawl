@@ -18,7 +18,7 @@ from solocrawl.core.packages.resolver import VersionEntry, parse_semver_constrai
 logger = logging.getLogger(__name__)
 
 
-@register("packagist", ecosystem="packagist", zero_config=True)
+@register("packagist", ecosystem="packagist", zero_config=True, configurable=True)
 class PackagistProvider:
     """Fetch package metadata from Packagist."""
 

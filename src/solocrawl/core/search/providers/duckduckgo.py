@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
+from solocrawl.config import Config, load_config
 from solocrawl.core.models import SearchResult
 from solocrawl.core.search.registry import register
 
@@ -27,9 +28,9 @@ def _import_ddgs() -> Any:
     return DDGS
 
 
-def _run_ddgs_text(query: str, *, limit: int) -> list[dict[str, Any]]:
+def _run_ddgs_text(query: str, *, limit: int, timeout: float = 30.0) -> list[dict[str, Any]]:
     ddgs_cls = _import_ddgs()
-    ddgs = ddgs_cls()
+    ddgs = ddgs_cls(timeout=timeout)
     raw_results = ddgs.text(query, max_results=limit)
     if not isinstance(raw_results, list):
         return []
@@ -58,12 +59,15 @@ def _map_ddgs_results(raw_results: list[dict[str, Any]], *, limit: int) -> list[
     return results
 
 
-@register("duckduckgo", zero_config=True)
+@register("duckduckgo", zero_config=True, configurable=True)
 class DuckDuckGoProvider:
     """Search the web via DuckDuckGo using the ddgs package."""
 
     name = "duckduckgo"
     zero_config = True
+
+    def __init__(self, *, config: Config | None = None) -> None:
+        self._config = load_config() if config is None else config
 
     async def search(self, query: str, *, limit: int = 5) -> list[SearchResult]:
         """Search DuckDuckGo without blocking the event loop."""
@@ -76,6 +80,7 @@ class DuckDuckGoProvider:
                 _run_ddgs_text,
                 stripped,
                 limit=max(1, limit),
+                timeout=self._config.concurrency.timeout_seconds,
             )
         except Exception as exc:
             logger.warning("duckduckgo search failed for %r: %s", stripped, exc)

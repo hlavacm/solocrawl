@@ -28,7 +28,11 @@ def select_providers(
 
     for registration in list_registrations():
         if registration.zero_config:
-            selected.append(registration.factory())
+            selected.append(
+                registration.factory(config=config)
+                if registration.configurable
+                else registration.factory()
+            )
             continue
 
         if registration.name not in config.enabled_providers:
@@ -39,6 +43,10 @@ def select_providers(
             if key_value is None or key_value.strip() == "":
                 continue
 
-        selected.append(registration.factory())
+        selected.append(
+            registration.factory(config=config)
+            if registration.configurable
+            else registration.factory()
+        )
 
     return selected

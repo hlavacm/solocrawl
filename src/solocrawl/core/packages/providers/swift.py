@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 _GITHUB_HEADERS = {"Accept": "application/vnd.github+json"}
 
 
-@register("swift", ecosystem="swift", zero_config=True)
+@register("swift", ecosystem="swift", zero_config=True, configurable=True)
 class SwiftProvider:
     """Resolve Swift package versions from a repository's git tags (GitHub)."""
 
@@ -51,12 +51,30 @@ class SwiftProvider:
                 self._config.concurrency,
                 user_agent=self._config.fetch.user_agent,
             )
-            response = await client.get(url, headers=_GITHUB_HEADERS)
-            if response.status_code == 404:
-                msg = f"Swift package repository not found: {owner}/{repo}"
-                raise PackageNotFoundError(msg)
-            response.raise_for_status()
-            payload = response.json()
+            payload: list[object] = []
+            visited: set[str] = set()
+            while url:
+                if url in visited:
+                    raise PackageNotFoundError("cyclic GitHub tags pagination")
+                visited.add(url)
+                response = await client.get(url, headers=_GITHUB_HEADERS)
+                if response.status_code == 404:
+                    raise PackageNotFoundError(
+                        f"Swift package repository not found: {owner}/{repo}"
+                    )
+                response.raise_for_status()
+                page = response.json()
+                if not isinstance(page, list):
+                    raise PackageNotFoundError(f"invalid GitHub tags response for {owner}/{repo}")
+                payload.extend(page)
+                url = response.links.get("next", {}).get("url", "")
+                # Only follow pagination links on this repository's official API path.
+                if url and (
+                    httpx.URL(url).scheme != "https"
+                    or httpx.URL(url).host != "api.github.com"
+                    or httpx.URL(url).path != f"/repos/{owner}/{repo}/tags"
+                ):
+                    raise PackageNotFoundError("invalid GitHub tags pagination URL")
         except httpx.HTTPError as exc:
             logger.warning("Swift (GitHub tags) lookup failed for %r: %s", name, exc)
             msg = f"failed to fetch tags for Swift package: {owner}/{repo}"

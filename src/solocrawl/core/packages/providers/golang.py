@@ -22,7 +22,7 @@ from solocrawl.core.packages.resolver import (
 logger = logging.getLogger(__name__)
 
 
-@register("go", ecosystem="go", zero_config=True)
+@register("go", ecosystem="go", zero_config=True, configurable=True)
 class GoModuleProvider:
     """Fetch module versions from proxy.golang.org."""
 
@@ -46,7 +46,14 @@ class GoModuleProvider:
             msg = "module path must not be empty"
             raise PackageNotFoundError(msg)
 
-        list_url = f"https://proxy.golang.org/{quote(module_path, safe='/')}/@v/list"
+        escaped_path = quote(
+            "".join(
+                "!" + char.lower() if char.isascii() and char.isupper() else char
+                for char in module_path
+            ),
+            safe="/!",
+        )
+        list_url = f"https://proxy.golang.org/{escaped_path}/@v/list"
 
         try:
             client = await get_client(
@@ -72,7 +79,7 @@ class GoModuleProvider:
                 raise PackageNotFoundError(msg)
 
             info_response = await client.get(
-                f"https://proxy.golang.org/{module_path}/@v/{latest}.info"
+                f"https://proxy.golang.org/{escaped_path}/@v/{quote(latest, safe='')}.info"
             )
             if info_response.status_code == 200:
                 info_payload = info_response.json()

@@ -8,15 +8,16 @@ server and multi-URL operations (research/batch) within a single run.
 from __future__ import annotations
 
 import time
+from collections.abc import Hashable
 
 from solocrawl.core.models import FetchResult
 
 _MAX_ENTRIES = 256
 
-_cache: dict[str, tuple[float, FetchResult]] = {}
+_cache: dict[Hashable, tuple[float, FetchResult]] = {}
 
 
-def cache_get(url: str) -> FetchResult | None:
+def cache_get(url: Hashable) -> FetchResult | None:
     """Return a non-expired cached result for ``url`` (or ``None``)."""
     entry = _cache.get(url)
     if entry is None:
@@ -28,7 +29,7 @@ def cache_get(url: str) -> FetchResult | None:
     return result
 
 
-def cache_set(url: str, result: FetchResult, ttl_seconds: float) -> None:
+def cache_set(url: Hashable, result: FetchResult, ttl_seconds: float) -> None:
     """Store ``result`` for ``url`` with a TTL. A non-positive TTL stores nothing."""
     if ttl_seconds <= 0:
         return

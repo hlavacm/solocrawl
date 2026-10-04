@@ -11,12 +11,12 @@ import httpx
 
 from solocrawl.cli.document import render_fetch_document
 from solocrawl.core.fetch import (
-    FetchUrlError,
     RobotsDisallowedError,
     close_browser,
     close_client,
     fetch,
 )
+from solocrawl.core.proxy import ProxyUnavailableError, redact_proxy_credentials
 
 
 def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -49,7 +49,7 @@ def run(args: argparse.Namespace) -> int:
 async def _scrape(url: str, *, out: Path | None, force_browser: bool) -> int:
     try:
         result = await fetch(url, force_browser=force_browser)
-    except (FetchUrlError, RobotsDisallowedError) as exc:
+    except (ValueError, RobotsDisallowedError, ProxyUnavailableError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except httpx.HTTPStatusError as exc:
@@ -59,7 +59,7 @@ async def _scrape(url: str, *, out: Path | None, force_browser: bool) -> int:
         )
         return 1
     except httpx.RequestError as exc:
-        print(f"error: network error: {exc}", file=sys.stderr)
+        print(f"error: network error: {redact_proxy_credentials(str(exc))}", file=sys.stderr)
         return 1
     finally:
         await close_client()

@@ -7,6 +7,7 @@ from solocrawl.core.packages.resolver import (
     ConstraintParser,
     VersionEntry,
     VersionNormalizer,
+    parse_semver_constraint,
     previous_versions,
     resolve_latest,
 )
@@ -31,12 +32,18 @@ def build_package_info(
 ) -> PackageInfo:
     """Build ``PackageInfo`` with a resolved latest version."""
     version_strings = [entry.version for entry in versions if not entry.yanked]
+    use_semver = constraint_parser is parse_semver_constraint and ecosystem not in {
+        "maven",
+        "nuget",
+        "rubygems",
+    }
     latest = resolve_latest(
         versions,
         constraint=constraint,
         allow_prerelease=allow_prerelease,
         constraint_parser=constraint_parser,
         version_normalizer=version_normalizer,
+        semver=use_semver,
     )
     if latest is None:
         msg = f"no matching version found for {name!r}"
@@ -50,6 +57,8 @@ def build_package_info(
             version_strings,
             latest=latest,
             count=5,
+            allow_prerelease=allow_prerelease,
+            semver=use_semver,
             version_normalizer=version_normalizer,
         ),
         repository=repository,

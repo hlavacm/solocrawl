@@ -19,7 +19,7 @@ _API_BASE = "https://api.stackexchange.com/2.3"
 _BODY_FILTER = "withbody"
 
 
-@register("stackexchange", zero_config=True)
+@register("stackexchange", zero_config=True, configurable=True)
 class StackExchangeProvider:
     """Search Stack Overflow and sibling sites via the StackExchange API."""
 

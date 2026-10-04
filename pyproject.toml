@@ -11,27 +11,38 @@ license = { text = "MIT" }
 requires-python = ">=3.14"
 authors = [{ name = "Martin Hlaváč" }]
 dependencies = [
-    "ddgs>=9.0",
-    "fastmcp>=3.4",
-    "httpx>=0.28",
-    "markdownify>=0.14",
-    "packaging>=24.0",
-    "python-dotenv>=1.2",
-    "readability-lxml>=0.8",
-    "semver>=3.0",
-    "trafilatura>=2.0",
+    # Security floors for transitive dependencies; keep existing environments safe on upgrade.
+    "anyio>=4.15.1",
+    "cryptography>=50.0.2",
+    "ddgs>=9.16.0",
+    "fastmcp>=4.0.10,<5",
+    "httpx>=0.28.1",
+    "h2>=4.4.1",
+    "hpack>=4.2.0",
+    "markdownify>=1.2.3",
+    "packaging>=26.3",
+    "pydantic-settings>=2.15.0",
+    "PyJWT>=2.15.1",
+    "python-dotenv>=1.2.4",
+    "readability-lxml>=0.9",
+    "semver>=3.1.0",
+    "soupsieve>=2.10",
+    "trafilatura>=2.3.0",
 ]
 
 [project.optional-dependencies]
 browser = [
-    "playwright>=1.49",
+    "playwright>=1.63.0",
 ]
 dev = [
-    "pytest>=9.0",
-    "pytest-asyncio>=0.24",
-    "ruff>=0.8",
-    "pyright>=1.1",
+    "pip>=26.2.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.10",
+    "pyright>=1.1.414",
     "pytest-cov>=7.1",
+    "build>=1.6.1",
+    "pip-audit>=2.10.1",
 ]
 all = [
     "solocrawl[browser]",
@@ -60,18 +71,18 @@ select = [
 known-first-party = ["solocrawl"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 extraPaths = ["src"]
 typeCheckingMode = "standard"
 pythonVersion = "3.14"
-venvPath = "."
-venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
+    "browser: local Chromium integration tests (requires the browser extra)",
+    "mcp: MCP client protocol integration tests",
     "live: tests that hit the real network (deselect with '-m \"not live\"')",
 ]
-addopts = "-m 'not live'"
+addopts = "-m 'not live and not browser'"

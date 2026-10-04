@@ -15,6 +15,7 @@ from solocrawl.core.search import (
     register,
     select_providers,
 )
+from solocrawl.core.search import registry as search_registry
 
 
 class DummyZeroConfigProvider:
@@ -64,12 +65,14 @@ class DummyKeyedOptInProvider:
 
 @pytest.fixture
 def dummy_providers() -> Generator[None]:
+    saved = dict(search_registry._REGISTRY)
     clear_registry()
     register("dummy_zero", zero_config=True)(DummyZeroConfigProvider)
     register("dummy_optin")(DummyOptInProvider)
     register("dummy_keyed", required_env_key="SOLOCRAWL_DUMMY_API_KEY")(DummyKeyedOptInProvider)
     yield
     clear_registry()
+    search_registry._REGISTRY.update(saved)
 
 
 def test_registry_lists_registered_providers(dummy_providers: None) -> None:

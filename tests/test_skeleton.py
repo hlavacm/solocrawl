@@ -7,7 +7,7 @@ import solocrawl
 
 
 def test_version_is_set() -> None:
-    assert solocrawl.__version__ == "1.0.0"
+    assert solocrawl.__version__ == "1.1.0"
 
 
 def test_all_submodules_are_importable() -> None:

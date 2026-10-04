@@ -1,7 +1,8 @@
 # Maintenance implementation — 2026-10
 
-The approved audit plan is implemented in the current checkout. The version remains 1.0.0;
-this work does not publish a release. User-driven checks confirmed offline, MCP, Chromium,
+The approved audit plan is implemented in the current checkout. Version 1.1.0 and its
+[release notes](release/1.1.0.md) are prepared; publication is a separate action.
+User-driven checks confirmed offline, MCP, Chromium,
 packaging, patched dependencies and live providers. The unsupported Reddit adapter was removed;
 SearXNG remains optional and unverified without a configured instance.
 

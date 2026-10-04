@@ -19,4 +19,9 @@ The packaging report points to the run's wheel and source distribution under
 checkout so editable imports cannot hide missing wheel contents.
 
 Review the version in `pyproject.toml` when preparing an actual release. The package reads installed
-metadata and has a matching fallback in `src/solocrawl/__init__.py` for an uninstalled checkout. The maintenance work does not assert that a new version has been published.
+metadata and has a matching fallback in `src/solocrawl/__init__.py` for an uninstalled checkout.
+Reinstall the editable package after a version bump so installed metadata matches the checkout.
+
+The prepared [1.1.0 release notes](1.1.0.md) can be used with GitHub's release form or
+`gh release create --notes-file docs/release/1.1.0.md`. Release preparation alone does not publish
+the package to GitHub or PyPI.
